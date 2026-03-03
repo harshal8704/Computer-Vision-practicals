@@ -1,0 +1,76 @@
+import matplotlib.pyplot as plt
+
+if cap is None or not cap.isOpened():
+    print(f"Re-opening video source: {video_path}")
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        print("Error: Could not re-open video source.")
+        exit()
+
+ret, frame1 = cap.read()
+if not ret:
+    print("Error: Could not read the first frame.")
+    cap.release()
+    exit()
+prev_gray = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
+print("First frame read and converted to grayscale for visualization.")
+
+visualized_frames = []
+
+frame_count = 0
+
+step_size = 16
+threshold = 1.0
+arrow_color = (0, 255, 0)
+arrow_thickness = 1
+max_visualized_frames = 3
+print("Starting frame processing for visualization...")
+
+while cap.isOpened() and len(visualized_frames) < max_visualized_frames:
+    ret, frame2 = cap.read()
+    if not ret:
+        print("End of video stream or error reading frame.")
+        break
+
+    next_gray = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
+    flow = cv2.calcOpticalFlowFarneback(
+        prev_gray, next_gray, None,
+        0.5, 3, 15, 3, 5, 1.2, 0
+    )
+    if frame_count % 50 == 0:
+        display_frame = frame2.copy()
+
+        for y in range(0, display_frame.shape[0], step_size):
+            for x in range(0, display_frame.shape[1], step_size):
+                fx, fy = flow[y, x]
+                magnitude = np.sqrt(fx*fx + fy*fy)
+                if magnitude > threshold:
+                    x_end = int(x + fx)
+                    y_end = int(y + fy)
+                    cv2.arrowedLine(
+                        display_frame, (x, y), (x_end, y_end),
+                        arrow_color, arrow_thickness, cv2.LINE_AA, 0, 0.5
+                    )
+        display_frame_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
+        visualized_frames.append((display_frame_rgb, frame_count))
+        print(f"Captured frame {frame_count} for visualization.")
+
+    prev_gray = next_gray
+    frame_count += 1
+
+print(f"Finished processing frames for visualization. Total processed: {frame_count}")
+if visualized_frames:
+    fig, axes = plt.subplots(1, len(visualized_frames), figsize=(5 * len(visualized_frames), 5))
+    if len(visualized_frames) == 1:
+        axes = [axes]
+
+    for i, (img, f_num) in enumerate(visualized_frames):
+        axes[i].imshow(img)
+        axes[i].set_title(f"Frame {f_num} with Flow")
+        axes[i].axis('off')
+    plt.tight_layout()
+    plt.show()
+else:
+    print("No frames were visualized.")
+cap.release()
+print("Video capture object released.")
